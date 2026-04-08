@@ -71,23 +71,16 @@ cd /path/to/spikePathTool_cleanScripts
 # 3. Run
 python run_spikepath.py \
     --h5      /path/to/recording.raw.h5 \
-    --src     327 \
-    --tgt     85 \
-    --overlay /path/to/impedance.png
+    --src     1 \ #(Optional) source electrode
+    --tgt     2 \ #(Optional) target electrode
+    --overlay /path/to/impedance.png \
+    --yes  \ #(Optional) skipping of 2ms timing window constraint
 ```
-
+(Notes)
 Omit `--src` and `--tgt` to select source and target interactively.
 
 Add `--yes` to skip the interactive axis-confirmation window (required in WSL / headless environments):
 
-```bash
-python run_spikepath.py \
-    --h5      /path/to/recording.raw.h5 \
-    --src     327 \
-    --tgt     85 \
-    --overlay /path/to/impedance.png \
-    --yes
-```
 
 ### Interactive prompts
 
