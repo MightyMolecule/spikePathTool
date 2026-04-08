@@ -1,6 +1,13 @@
-# SpikePath
+# SpikePathTool
 
-Principal-axis spike analysis toolkit for MaxWell HD-MEA recordings.
+This is a slim python spike analysis toolkit for MaxWell HD-MEA recordings that enables detection of passive action potentials through microstructure channels with interactive user features. SpikePathTool was initially built to characterize passive directional signaling of axons in asymmetric&directional PDMS microchannels. SpikePathTool enables interactive selection of Source/Target electrode pairs overlaid from impedance scanning to characterize signal propagation and variation along a principal axis. Brab
+ electrodes along a 1 electrode search radius. 
+ 
+ ## Branch A: 
+ Runs a spike count analysis along the selected axis. It bins the electrodes spatially into segments (default: quintile bins) and counts how many spikes each electrode and bin detected from the spike cache. Branch A outputs a spatial heatmap, bar chart, and CSVs showing firing activity distributed along the axon path.
+
+## Branch B: 
+Extracts waveform traces and computes propagation speed. It selects a few intermediate electrodes between the source and target (default 3), finds paired spike events where the source fires and the target responds within a defined timing window (0.5–1.5 ms by default), then cuts short voltage snippets from the raw traces around each event. The result is an overlaid waveform plot showing the action potential shape at each electrode along the path, and a CSV with the estimated conduction velocity.
 
 ---
 
@@ -9,7 +16,8 @@ Principal-axis spike analysis toolkit for MaxWell HD-MEA recordings.
 ```
 spikePathTool_cleanScripts/
 │
-├── run_spikepath.py              ← main CLI entry point
+├── run_spikepath.py              ← single-recording CLI entry point
+├── run_concat.py                 ← multi-recording aggregation & combined analysis CLI
 ├── neuroflow_utils.py            ← utility helpers
 ├── example_notebook.ipynb        ← example Jupyter notebook
 ├── environment.yml               ← conda environment setup
@@ -19,7 +27,8 @@ spikePathTool_cleanScripts/
 │   ├── __init__.py
 │   ├── filtering.py              ← chip constants, spike detection, refractory filter
 │   ├── selection.py              ← Recording/AxisSelection, load_recording, select_axis
-│   ├── analysis.py               ← waveform extraction, plotting, stats
+│   ├── analysis.py               ← waveform extraction, plotting, stats, CSV concatenation
+│   ├── combined_analysis.py      ← population-level early vs late axis analysis
 │   └── interactive.py            ← confirm_axis, confirm_intermediates, prompt_n_traces
 │
 └── exampleData/
@@ -119,7 +128,7 @@ Add `--yes` to skip the interactive axis-confirmation window (required in WSL / 
 | Branch B | `--link_min_ms` | `0.5` | Min SRC→TGT delay for paired events (ms) |
 | Branch B | `--link_max_ms` | `1.5` | Max SRC→TGT delay for paired events (ms) |
 
-### Output layout
+### Output layout — single recording
 
 ```
 <out_dir>/
@@ -136,202 +145,73 @@ Add `--yes` to skip the interactive axis-confirmation window (required in WSL / 
 
 ---
 
-## Using the library directly
+## Quick start — combined analysis (multi-recording)
 
-```python
-import spikepath
+Run after collecting `spike_count_axis/` outputs from multiple recordings.
 
-H5      = '/path/to/recording.raw.h5'
-MAPPING = '/data_store/data0000/settings/mapping'
+```bash
+python run_concat.py \
+    --base_dir /path/to/SpikeCountAxisTool \
+    --early_pct 25 \
+    --late_pct  75 \
+    --rep "P002275,8,dir,#d62728" \
+    --rep "P001314,1,ctl,#1f77b4"
 ```
 
-### 1. Spike detection
+Omit `--rep` to skip the representative channel plots. Add `--skip_concat` to reuse an existing `combined_spike_axis.csv` without re-scanning the directory.
 
-Spikes are cached to `<h5_path>_spikes.npy` alongside the H5 file. Run once; subsequent calls load the cache automatically.
+### All CLI options — `run_concat.py`
 
-```python
-x_arr, y_arr, n_channels, outlier_idx = spikepath.load_h5_mapping(H5, MAPPING)
+| Group | Argument | Default | Description |
+|---|---|---|---|
+| required | `--base_dir` | — | Directory containing spikepath output folders |
+| paths | `--out_dir` | `<base_dir>/combined_output` | Output directory |
+| paths | `--skip_concat` | False | Skip CSV concatenation, use existing `combined_spike_axis.csv` |
+| analysis | `--early_pct` | `25.0` | Upper axis-position percentile defining the early segment |
+| analysis | `--late_pct` | `75.0` | Lower axis-position percentile defining the late segment |
+| analysis | `--rep` | None | Representative channel: `"recording,channel,type[,#color]"` — repeat for multiple |
 
-spike_array = spikepath.detect_spikes(
-    H5, n_channels, outlier_idx,
-    fs=20_000,
-    gain=3.14,
-)
-# spike_array: ndarray (N, 3) — [frame, amplitude, channel_idx]
+### Output layout — combined analysis
+
 ```
-
-### 2. Load recording
-
-```python
-rec = spikepath.load_recording(
-    H5,
-    MAPPING,
-    fs=20_000,
-    refractory_ms=1.0,
-    load_raw=True,      # required for waveform extraction
-)
-# rec.xy          — (n_channels, 2) positions in µm
-# rec.spike_array — (N, 3) spikes
-# rec.sp_times    — spike frame numbers
-# rec.sp_ch       — spike channel indices
-# rec.duration_s  — recording length in seconds
-# rec.rec_f       — bandpass-filtered SpikeInterface recording (if load_raw=True)
-```
-
-### 3. Load overlay (optional)
-
-```python
-overlay = spikepath.load_overlay('/path/to/impedance.png')
-# Returns an RGBA ndarray for use in plots, or None if path is None
-```
-
-### 4. Select axis
-
-```python
-axis = spikepath.select_axis(
-    rec,
-    overlay,
-    manual_src=327,
-    manual_tgt=85,
-    search_band_um=25.0,   # µm perpendicular to axis
-)
-# axis.src_ch, axis.tgt_ch  — source/target channel indices
-# axis.axis_len              — length in µm
-# axis.cands                 — indices of on-axis candidate electrodes
-# axis.d_along               — along-axis distance for every channel (µm)
-# axis.d_lo, axis.d_hi       — axis distance bounds
-```
-
-### 5. Branch A — spike count along axis
-
-```python
-results = spikepath.run_spike_count_axis(
-    rec, axis,
-    out_dir='/tmp/spike_count_axis',
-    group_frac=0.2,     # bin width = 20% of axis length
-    overlay=overlay,
-)
-```
-
-Saves `summary.txt`, `axis_spike_count_map.png`, `axis_spike_count_bars.png`, and two CSVs to `out_dir`.
-
-### 6. Branch B — waveform traces & propagation speed
-
-**Select intermediates:**
-
-```python
-# Auto-select n_inter electrodes scored by coincident firing
-intermediates = spikepath.select_intermediates(
-    rec, axis,
-    n_inter=3,
-    link_min_ms=0.5,
-    link_max_ms=1.5,
-)
-# Or specify manually:
-intermediates = [466, 83, 180]   # sorted by axis position automatically
-```
-
-**Extract waveforms:**
-
-```python
-waveform_data = spikepath.extract_waveforms(
-    rec, axis, intermediates,
-    mode='src_tgt',     # 'src_tgt' or 'src_only'
-    n_traces=30,
-    start_time_s=0.0,
-    pre_ms=1.0,
-    post_ms=2.5,
-    link_min_ms=0.5,
-    link_max_ms=1.5,
-)
-# Returns dict with keys:
-#   arr_list    — list of (n_traces, n_frames) arrays, one per electrode
-#   t_ms        — time axis relative to source spike
-#   axis_chs    — [SRC, M1, M2, M3, TGT] channel indices
-#   axis_labels — ['SRC', 'M1', 'M2', 'M3', 'TGT']
-#   valid_evts  — spike events used
-#   valid_spk_t — per-event spike times for each electrode
-```
-
-**Plot waveforms:**
-
-```python
-fig = spikepath.plot_waveforms(
-    rec, axis, intermediates, waveform_data,
-    overlay=overlay,
-    out_path='/tmp/waveform_traces/waveforms.png',
-)
-```
-
-**Save propagation speed CSV:**
-
-```python
-spikepath.save_speed_csv(
-    waveform_data,
-    out_path='/tmp/waveform_traces/propagation_speed.csv',
-)
-```
-
-The CSV contains per-event columns for each electrode: spike delay (ms), absolute spike time (s), waveform amplitude range (µV), plus segment-by-segment distance (µm), delay (ms), and propagation speed (µm/ms and m/s).
-
----
-
-## Multi-recording statistics
-
-After running Branch A across multiple recordings, aggregate the CSVs for population analysis.
-
-### Concatenate CSVs
-
-Expects directory structure:
-```
-base_dir/
-    {microstructure}_{channel_type}/
-        {channel}_{direction}/
-            axis_spike_count_electrodes.csv
-```
-
-```python
-df = spikepath.concatenate_axis_csvs(
-    base_dir='/path/to/results/SpikeCountAxisTool',
-    out_path='/tmp/combined.csv',   # optional
-)
-```
-
-### Summary statistics
-
-```python
-stats_df = spikepath.compute_stats(df)
-# columns: channel_type, bin, mean, sem
-```
-
-### Firing rate plot
-
-```python
-fig = spikepath.plot_firing_rate(df, out_path='/tmp/firing_rate.png')
-```
-
-### Linear mixed-effects model
-
-```python
-result = spikepath.run_lme(df)
-# spike_rate_hz ~ channel_type * bin  +  (1 | microstructure)
-print(result.summary())
+<out_dir>/
+├── combined_spike_axis.csv
+└── combined_analysis/
+    ├── segment_boxplot_<ms>.png
+    ├── sig_channels_vs_distance_<ms>.png
+    ├── fraction_significant_early_vs_late.png
+    ├── sig_channels_scatter_bestfit_all_ms.png
+    └── representative_<ms>_ch<N>.png        (only if --rep is provided)
 ```
 
 ---
 
-## Chip geometry constants
+## Pipeline
 
-```python
-spikepath.PITCH      # 17.5 µm — electrode pitch
-spikepath.GRID_ROWS  # 120
-spikepath.GRID_COLS  # 220
-```
+
+### 1) Spike Detection
+The raw .raw.h5 recording is read channel-by-channel in 200,000-frame chunks. Each channel is bandpass filtered (200–6,000 Hz), and negative peaks exceeding 3.6× the channel RMS are detected as spikes. Results are stored as a .npy cache file alongside the recording and reloaded on all subsequent runs, so this step only runs once per recording. A refractory filter then removes duplicate spikes on the same electrode within 1 ms of each other.
+
+### 2) Recording & Axis Selection
+Channel positions are read from the internal HDF5 mapping (/data_store/data0000/settings/mapping), and the single outlier electrode furthest from the centroid is excluded. Source and target electrodes are either passed as arguments or selected interactively by clicking on an impedance overlay image. All electrodes within a 25 µm perpendicular band of the SRC→TGT line are collected as axis candidates and sorted by their position along the axis.
+
+### 3) Branch A — Spike Count Axis
+Each candidate electrode's spike count is divided by the recording duration to give a firing rate in Hz. Electrodes are grouped into spatial bins (default 5 equal bins along the axis length) and the per-bin totals are computed. Outputs include a spatial heatmap of firing rate overlaid on the electrode map, a bar chart of spike counts per bin, and two CSVs — one at electrode resolution and one at bin resolution.
+
+Note on binning: The bin width is set as a fraction of axis length (--group_frac, default 0.2 → 5 bins). Bin count is therefore relative to the physical distance between SRC and TGT, not an absolute spatial scale. Choosing a very small --group_frac can produce sparsely populated bins if the axis is short or few electrodes fall within the band.
+
+### 4)Branch B — Waveform Traces & Propagation Speed
+A small number of intermediate electrodes (default 3) are auto-selected along the axis, then presented to the user for confirmation or manual override. Spike events are filtered to paired SRC→TGT events — cases where the source fires and the target responds within a defined delay window (default 0.5–1.5 ms). For each such event, a raw voltage snippet (default 1 ms before to 2.5 ms after the source spike) is cut from all axis electrodes. Individual traces are plotted as a stacked waveform panel with mean ± SD, and per-event propagation latencies and speeds (µm/ms and m/s) are written to a CSV.
+
+Note on event pairing: The 0.5–1.5 ms delay window is a constraint on what counts as a "propagating" event. Events outside this window — whether too fast (electrical crosstalk) or too slow (independent firing) — are excluded. In src_only mode this constraint is lifted and all source spikes are used as triggers, which is useful for characterizing source waveform shape independent of propagation.
+
+### 5) Combined Analysis — Early vs Late Axis Firing Rate (multi-recording)
+
+After running `run_spikepath.py` across multiple recordings, `run_concat.py` walks the output directory structure and concatenates all `axis_spike_count_electrodes.csv` files into a single `combined_spike_axis.csv`. It then runs a population-level analysis comparing spike rates in the proximal (early) and distal (late) portions of the principal axis for each channel in each microstructure condition. A Mann-Whitney U test is applied per channel with Benjamini-Hochberg FDR correction across all channels within each microstructure. Outputs include paired boxplots of early vs late firing rate per channel, spike rate vs axis distance plots for significant channels, a summary bar chart of the fraction of significant channels by microstructure and channel type, and a multi-panel scatter plot with linear regression lines for all significant channels across conditions. An optional set of representative single-channel plots can be generated by passing `--rep` arguments.
+
+Note on segmentation: The early and late cutoffs (`--early_pct`, `--late_pct`) define non-overlapping axis-position windows; the middle region between them is excluded from the statistical comparison. The default (25% / 75%) captures the proximal quarter vs the distal quarter of the axis. Narrowing these windows increases statistical power per bin but reduces the number of electrodes contributing to each segment.
 
 ---
 
-## WSL / headless notes
+## Key Findings
 
-- Matplotlib GUI windows (axis confirmation, heatmap selection) require a display. In WSL without WSLg, use `--yes` to skip the axis confirmation window.
-- Check your backend: `python -c "import matplotlib; print(matplotlib.get_backend())"`. If it prints `Agg`, set `export MPLBACKEND=TkAgg` before running.
-- The intermediates prompt and n_traces prompt are text-only and work without a display.

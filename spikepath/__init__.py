@@ -3,11 +3,12 @@ SpikePath — principal-axis spike analysis toolkit for MaxWell HD-MEA recording
 
 Modules
 -------
-filtering  : chip constants, H5 mapping, heatmap selection, spike detection, refractory filter
-selection  : Recording/AxisSelection dataclasses, load_recording, select_axis,
-             run_spike_count_axis, select_intermediates
-analysis   : extract_waveforms, plot_waveforms, save_speed_csv,
-             concatenate_axis_csvs, compute_stats, plot_firing_rate, run_lme
+filtering    : chip constants, H5 mapping, heatmap selection, spike detection, refractory filter
+selection    : Recording/AxisSelection dataclasses, load_recording, select_axis,
+               run_spike_count_axis, select_intermediates
+analysis     : extract_waveforms, plot_waveforms, save_speed_csv,
+               concatenate_axis_csvs, compute_stats, plot_firing_rate, run_lme
+interactive  : confirm_axis, confirm_intermediates, prompt_n_traces
 
 All public names are importable directly from spikepath:
 
@@ -16,12 +17,17 @@ All public names are importable directly from spikepath:
     axis = spikepath.select_axis(rec)
 
     from spikepath import load_recording, run_spike_count_axis, extract_waveforms
+    from spikepath import confirm_axis, confirm_intermediates, prompt_n_traces
 """
 
-from .filtering import *   # GRID_ROWS, GRID_COLS, PITCH + all filtering functions
-from .selection import *   # Recording, AxisSelection + all selection functions
-from .analysis  import *   # DEFAULT_COLORS + all analysis functions
+from .filtering         import *   # GRID_ROWS, GRID_COLS, PITCH + all filtering functions
+from .selection         import *   # Recording, AxisSelection + all selection functions
+from .analysis          import *   # DEFAULT_COLORS + all analysis functions
+from .interactive       import *   # confirm_axis, confirm_intermediates, prompt_n_traces
+from .combined_analysis import *   # run_combined_analysis + all population analysis functions
 
 from . import filtering
 from . import selection
 from . import analysis
+from . import interactive
+from . import combined_analysis
