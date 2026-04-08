@@ -1,34 +1,10 @@
-# spikePathTool
-
+# SpikePath
 
 Principal-axis spike analysis toolkit for MaxWell HD-MEA recordings.
 
-
 ---
 
-## How to launch: 
- # Required data files:
-    /path/to/recordings/
-    ├── recording.raw.h5          ← required
-    ├── recording_spikes.npy      ← auto-generated on first run, reused after
-    └── impedance.png             ← optional overlay (--overlay)
-
-Run the following commands: 
-# 1. Create the environment (once)
-conda env create -f /pathTospikePathTool/environment.yml
-
-# 2. Activate it (every session)
-conda activate spikepath
-
-# 3. Move to the tool directory
-cd /mnt/d/ephys/Analysis/Meeting/spikePathTool_cleanScripts
-
-# 4. Run
-python run_spikepath.py \
-    --h5      /pathToRecording/recording.raw.h5 \
-    --overlay /pathToOverlay/impedance.png
-
-```
+## Repository structure
 
 ```
 spikePathTool_cleanScripts/
@@ -46,52 +22,70 @@ spikePathTool_cleanScripts/
 │   ├── analysis.py               ← waveform extraction, plotting, stats
 │   └── interactive.py            ← confirm_axis, confirm_intermediates, prompt_n_traces
 │
-├── exampleData/
-│   ├── P002352_voltageMapReconstructed.png
-│   ├── Trace_..._spikes.npy      ← cached spike detection output
-│   └── exampleOutput/
-│       └── ch1_LR/
-│           ├── summary.txt
-│           ├── axis_spike_count_map.png
-│           ├── axis_spike_count_bars.png
-│           ├── axis_spike_count_electrodes.csv
-│           └── axis_spike_count_bins.csv
-│
-└── <recording>_spikepath_src<N>_tgt<N>/    ← auto-generated per run
-    ├── spike_count_axis/
-    │   ├── summary.txt
-    │   ├── axis_spike_count_map.png
-    │   ├── axis_spike_count_bars.png
-    │   ├── axis_spike_count_electrodes.csv
-    │   └── axis_spike_count_bins.csv
-    └── waveform_traces/
-        ├── waveforms.png
-        └── propagation_speed.csv
+└── exampleData/
+    ├── P002352_voltageMapReconstructed.png
+    ├── Trace_..._spikes.npy      ← cached spike detection output
+    └── exampleOutput/
+        └── ch1_LR/
+            ├── summary.txt
+            ├── axis_spike_count_map.png
+            ├── axis_spike_count_bars.png
+            ├── axis_spike_count_electrodes.csv
+            └── axis_spike_count_bins.csv
 ```
+
 ---
+
+## Setup
+
+### Required input files
+
+```
+/path/to/recordings/
+├── recording.raw.h5          ← required (MaxWell HD-MEA output)
+├── recording_spikes.npy      ← auto-generated on first run, reused after
+└── impedance.png             ← optional overlay (--overlay)
+```
+
+The `.raw.h5` file must contain the channel mapping at the internal HDF5 path
+`/data_store/data0000/settings/mapping` (default `--mapping_path`). Files
+recorded on a MaxWell system already have this.
+
+### Create the conda environment (once)
+
+```bash
+conda env create -f /path/to/spikePathTool_cleanScripts/environment.yml
+```
 
 ---
 
 ## Quick start — CLI
 
-Run from the `spikePathTool_cleanScripts/` directory so that `import spikepath` resolves.
-
 ```bash
+# 1. Activate the environment
+conda activate spikepath
+
+# 2. Move to the tool directory
+cd /path/to/spikePathTool_cleanScripts
+
+# 3. Run
 python run_spikepath.py \
-    --h5      /mnt/f/ephys/.../recording.raw.h5 \
+    --h5      /path/to/recording.raw.h5 \
     --src     327 \
     --tgt     85 \
-    --overlay /mnt/f/ephys/.../impedance.png
+    --overlay /path/to/impedance.png
 ```
 
-Add `--yes` to skip the interactive axis-confirmation window to reject propogation window filtration parameters (required in WSL / headless environments):
+Omit `--src` and `--tgt` to select source and target interactively.
+
+Add `--yes` to skip the interactive axis-confirmation window (required in WSL / headless environments):
 
 ```bash
 python run_spikepath.py \
-    --h5      /mnt/f/ephys/.../recording.raw.h5 \
+    --h5      /path/to/recording.raw.h5 \
     --src     327 \
     --tgt     85 \
-    --overlay /mnt/f/ephys/.../impedance.png \
+    --overlay /path/to/impedance.png \
     --yes
 ```
 
@@ -154,7 +148,7 @@ python run_spikepath.py \
 ```python
 import spikepath
 
-H5      = '/mnt/f/ephys/.../recording.raw.h5'
+H5      = '/path/to/recording.raw.h5'
 MAPPING = '/data_store/data0000/settings/mapping'
 ```
 
@@ -194,7 +188,7 @@ rec = spikepath.load_recording(
 ### 3. Load overlay (optional)
 
 ```python
-overlay = spikepath.load_overlay('/mnt/f/.../impedance.png')
+overlay = spikepath.load_overlay('/path/to/impedance.png')
 # Returns an RGBA ndarray for use in plots, or None if path is None
 ```
 
@@ -305,7 +299,7 @@ base_dir/
 
 ```python
 df = spikepath.concatenate_axis_csvs(
-    base_dir='/mnt/f/ephys/results/SpikeCountAxisTool',
+    base_dir='/path/to/results/SpikeCountAxisTool',
     out_path='/tmp/combined.csv',   # optional
 )
 ```
