@@ -1,30 +1,74 @@
 # spikePathTool
-Action potential propogation through straght principal straight axis
 
-# SpikePath
 
 Principal-axis spike analysis toolkit for MaxWell HD-MEA recordings.
 
+
 ---
 
-## Requirements
+## How to launch: 
+ # Required data files:
+    /path/to/recordings/
+    ├── recording.raw.h5          ← required
+    ├── recording_spikes.npy      ← auto-generated on first run, reused after
+    └── impedance.png             ← optional overlay (--overlay)
+
+Run the following commands: 
+# 1. Create the environment (once)
+conda env create -f /pathTospikePathTool/environment.yml
+
+# 2. Activate it (every session)
+conda activate spikepath
+
+# 3. Move to the tool directory
+cd /mnt/d/ephys/Analysis/Meeting/spikePathTool_cleanScripts
+
+# 4. Run
+python run_spikepath.py \
+    --h5      /pathToRecording/recording.raw.h5 \
+    --overlay /pathToOverlay/impedance.png
 
 ```
-numpy
-matplotlib
-scipy
-h5py
-Pillow
-pandas
-statsmodels
-spikeinterface
-```
 
-Install with:
-
-```bash
-pip install numpy matplotlib scipy h5py Pillow pandas statsmodels spikeinterface
 ```
+spikePathTool_cleanScripts/
+│
+├── run_spikepath.py              ← main CLI entry point
+├── neuroflow_utils.py            ← utility helpers
+├── example_notebook.ipynb        ← example Jupyter notebook
+├── environment.yml               ← conda environment setup
+├── README.md
+│
+├── spikepath/                    ← importable library
+│   ├── __init__.py
+│   ├── filtering.py              ← chip constants, spike detection, refractory filter
+│   ├── selection.py              ← Recording/AxisSelection, load_recording, select_axis
+│   ├── analysis.py               ← waveform extraction, plotting, stats
+│   └── interactive.py            ← confirm_axis, confirm_intermediates, prompt_n_traces
+│
+├── exampleData/
+│   ├── P002352_voltageMapReconstructed.png
+│   ├── Trace_..._spikes.npy      ← cached spike detection output
+│   └── exampleOutput/
+│       └── ch1_LR/
+│           ├── summary.txt
+│           ├── axis_spike_count_map.png
+│           ├── axis_spike_count_bars.png
+│           ├── axis_spike_count_electrodes.csv
+│           └── axis_spike_count_bins.csv
+│
+└── <recording>_spikepath_src<N>_tgt<N>/    ← auto-generated per run
+    ├── spike_count_axis/
+    │   ├── summary.txt
+    │   ├── axis_spike_count_map.png
+    │   ├── axis_spike_count_bars.png
+    │   ├── axis_spike_count_electrodes.csv
+    │   └── axis_spike_count_bins.csv
+    └── waveform_traces/
+        ├── waveforms.png
+        └── propagation_speed.csv
+```
+---
 
 ---
 
