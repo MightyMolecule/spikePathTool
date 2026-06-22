@@ -83,6 +83,8 @@ def _build_parser() -> argparse.ArgumentParser:
     paths = p.add_argument_group("paths")
     paths.add_argument("--overlay", default=None,
                        help="Path to impedance overlay image (.png/.jpg/.npy)")
+    paths.add_argument("--spike_cache", default=None,
+                       help="Path to precomputed spike cache .npy (overrides auto-derived name)")
     paths.add_argument("--out_dir", default=None,
                        help="Output directory (default: ./<basename>_spikepath_src<N>_tgt<N>)")
 
@@ -132,7 +134,7 @@ def main():
     h5_base = os.path.basename(args.h5).replace('.raw.h5', '')
 
     # ── Step 1: Spike detection (if cache missing) ────────────────────────
-    spike_cache = args.h5.replace('.raw.h5', '_spikes.npy')
+    spike_cache = args.spike_cache or args.h5.replace('.raw.h5', '_spikes.npy')
     if not os.path.exists(spike_cache):
         print("=" * 60)
         print("Spike cache not found — running detect_spikes()")
@@ -155,6 +157,7 @@ def main():
         fs=args.fs,
         refractory_ms=args.refractory_ms,
         load_raw=True,
+        spike_cache=args.spike_cache,
     )
 
     # ── Step 3: Overlay ───────────────────────────────────────────────────
